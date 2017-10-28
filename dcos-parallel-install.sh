@@ -1,7 +1,7 @@
 #!/bin/bash
 source cluster.conf
-AWSKEY="${HOME}/.ssh/id_rsa"
-AWSUSER="core"
+PUBKEY="${HOME}/.ssh/id_rsa"
+COREUSER="core"
 
 function parallel_ssh(){
   local members=${1}
@@ -12,7 +12,7 @@ function parallel_ssh(){
 #!/bin/bash
 exec > ${tfile}.log.\$\$ 2>&1
 echo "Processing member \${1}"
-ssh -t -i ${AWSKEY} ${AWSUSER}@\${1} "${command}"
+ssh -t -i ${PUBKEY} ${COREUSER}@\${1} "${command}"
 EOF
   chmod +x ${tfile}
   for member in ${members}; do
@@ -31,7 +31,7 @@ function parallel_scp(){
 
   for member in ${members}; do
     echo "scp ${files} to ${member}"
-    tmux new-window "scp -i ${AWSKEY} ${files} ${AWSUSER}@${member}:"
+    tmux new-window "scp -i ${PUBKEY} ${files} ${COREUSER}@${member}:"
   done
 }
 
@@ -54,7 +54,7 @@ function wait_sessions() {
 }
 
 # Main
-for f in ${AWSKEY} pass.txt; do
+for f in ${PUBKEY} pass.txt; do
     if [ ! -f ${f} ]; then
         echo "${f} not found."
         exit 1
@@ -69,7 +69,7 @@ echo "Scanning node public keys for SSH auth ..."
 for i in ${NODES}; do
   ssh-keygen -R ${i}
   ssh-keyscan -H ${i} >> ${HOME}/.ssh/known_hosts
-  sshpass -f ./pass.txt ssh-copy-id ${AWSUSER}@${i}
+  sshpass -f ./pass.txt ssh-copy-id ${COREUSER}@${i}
 done
 
 echo "Making sure we can SSH to all nodes ..."
@@ -85,20 +85,20 @@ parallel_scp "${NODESPUB}" "scripts/public*"
 wait_sessions "5s"
 
 echo "Quick bootstrap on all nodes"
-parallel_ssh "${NODES}" "/home/${AWSUSER}/all-01.sh"
+parallel_ssh "${NODES}" "/home/${COREUSER}/all-01.sh"
 
 echo "Preparing DC/OS binaries ..."
-parallel_ssh "${BOOTSTRAP}" "sudo /home/${AWSUSER}/boot-02.sh"
+parallel_ssh "${BOOTSTRAP}" "sudo /home/${COREUSER}/boot-02.sh"
 wait_sessions
 
 echo "Installing master nodes ..."
-parallel_ssh "${NODESM}" "sudo /home/${AWSUSER}/master-02.sh" "1m"
+parallel_ssh "${NODESM}" "sudo /home/${COREUSER}/master-02.sh" "1m"
 wait_sessions "1m"
 sleep 1m
 
 echo "Installing private and public nodes ..."
-parallel_ssh "${NODESPRIV}" "sudo /home/${AWSUSER}/private-02.sh"
-parallel_ssh "${NODESPUB}" "sudo /home/${AWSUSER}/public-02.sh"
+parallel_ssh "${NODESPRIV}" "sudo /home/${COREUSER}/private-02.sh"
+parallel_ssh "${NODESPUB}" "sudo /home/${COREUSER}/public-02.sh"
 wait_sessions "1m"
 
 echo "Shutting down tmux"
