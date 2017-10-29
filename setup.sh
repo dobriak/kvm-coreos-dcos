@@ -1,5 +1,6 @@
 #!/bin/bash
 #set -ex
+source cluster.conf
 
 function initialSetup() {
     local disk
@@ -149,7 +150,6 @@ if (( ${EUID} != 0 )); then
     echo "Please run as root"
     exit 1
 fi
-USER="julian"
 NODES="b m1 a1 a2 p1"
 NATNET="default"
 BRNET="host-bridge"
@@ -167,7 +167,7 @@ nics[a2mac]="52:54:00:fe:b3:32" ; nics[a2ip]="192.168.122.132"
 nics[p1mac]="52:54:00:fe:b3:40" ; nics[p1ip]="192.168.122.140"
 nics[p1macx]="52:54:00:fe:b3:4a" ; nics[p1ipx]="192.168.1.223"
 
-sshkey=$(cat /home/${USER}/.ssh/id_rsa.pub)
+sshkey=$(cat ${PUBKEY})
 domain_dir=/var/lib/libvirt/container-linux/dcos
 image_dir=/var/lib/libvirt/images/container-linux
 

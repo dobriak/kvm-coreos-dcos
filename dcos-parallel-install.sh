@@ -1,6 +1,6 @@
 #!/bin/bash
 source cluster.conf
-PUBKEY="${HOME}/.ssh/id_rsa"
+PRIVKEY="${HOME}/.ssh/id_rsa"
 COREUSER="core"
 
 function parallel_ssh(){
@@ -12,7 +12,7 @@ function parallel_ssh(){
 #!/bin/bash
 exec > ${tfile}.log.\$\$ 2>&1
 echo "Processing member \${1}"
-ssh -t -i ${PUBKEY} ${COREUSER}@\${1} "${command}"
+ssh -t -i ${PRIVKEY} ${COREUSER}@\${1} "${command}"
 EOF
   chmod +x ${tfile}
   for member in ${members}; do
@@ -31,7 +31,7 @@ function parallel_scp(){
 
   for member in ${members}; do
     echo "scp ${files} to ${member}"
-    tmux new-window "scp -i ${PUBKEY} ${files} ${COREUSER}@${member}:"
+    tmux new-window "scp -i ${PRIVKEY} ${files} ${COREUSER}@${member}:"
   done
 }
 
@@ -54,7 +54,7 @@ function wait_sessions() {
 }
 
 # Main
-for f in ${PUBKEY} pass.txt; do
+for f in ${PRIVKEY}; do
     if [ ! -f ${f} ]; then
         echo "${f} not found."
         exit 1
@@ -69,7 +69,6 @@ echo "Scanning node public keys for SSH auth ..."
 for i in ${NODES}; do
   ssh-keygen -R ${i}
   ssh-keyscan -H ${i} >> ${HOME}/.ssh/known_hosts
-  sshpass -f ./pass.txt ssh-copy-id ${COREUSER}@${i}
 done
 
 echo "Making sure we can SSH to all nodes ..."
