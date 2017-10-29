@@ -1,6 +1,5 @@
 #!/bin/bash
 source cluster.conf
-PRIVKEY="${HOME}/.ssh/id_rsa"
 COREUSER="core"
 
 function parallel_ssh(){
