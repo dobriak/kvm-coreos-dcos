@@ -1,4 +1,5 @@
 #!/bin/bash
+#set -ex
 source cluster.conf
 IPDETECT='ip addr show eth0 | grep -Eo "[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}" | head -1'
 IPDETECT_PUB='ip addr show eth1 | grep -Eo "[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}" | head -1'
@@ -75,6 +76,9 @@ echo "Generating binaries"
 sudo bash dcos_generate_config.sh
 
 echo "Running nginx on http://${BOOTSTRAP_IP}:${BOOTSTRAP_PORT}"
-docker run -d -p ${BOOTSTRAP_PORT}:80 -v $PWD/genconf/serve:/usr/share/nginx/html:ro nginx
+docker run -d -p ${BOOTSTRAP_PORT}:80 -v $PWD/genconf/serve:/usr/share/nginx/html:ro --restart always nginx
+docker ps
+netstat -nltp
+
 
 echo "Done"

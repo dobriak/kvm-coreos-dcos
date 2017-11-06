@@ -1,4 +1,5 @@
 #!/bin/bash
+#set -ex
 source cluster.conf
 mkdir /tmp/dcos
 pushd /tmp/dcos
