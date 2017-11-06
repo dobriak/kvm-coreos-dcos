@@ -1,4 +1,5 @@
 #!/bin/bash
+#set -ex
 if [ -z "${1}" ]; then
     echo "Missing argument. Format:"
     echo "  ${0} key1:value1[,keyX:valueX,...] [-f]"
