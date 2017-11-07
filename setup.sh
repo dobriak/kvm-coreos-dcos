@@ -12,7 +12,7 @@ function initialSetup() {
         popd
     fi
 
-    for node in ${NODES}; do
+    for node in ${nodes}; do
         disk=${image_dir}/${node}-disk.qcow2
         if [ ! -f ${disk} ]; then
             qemu-img create -f qcow2 -b ${image_dir}/coreos_production_qemu_image.img ${disk} 15G
@@ -30,7 +30,7 @@ function initialSetup() {
 }
 
 function createIps() {
-    for node in ${NODES}; do
+    for node in ${nodes}; do
         virsh net-update --network "${NATNET}" add-last ip-dhcp-host \
             --xml "<host mac='${nics[${node}mac]}' ip='${nics[${node}ip]}' />" \
             --live --config
@@ -44,7 +44,7 @@ function createIps() {
 
 function writeIgnition() {
     local ext_nic
-    for node in ${NODES}; do
+    for node in ${nodes}; do
         ext_nic=""
         if [[ "m1 p1" == *"${node}"* ]]; then
             ext_nic=",{ \"name\": \"00-eth1.network\", \"contents\": \"[Match]\nMACAddress=${nics[${node}macx]}\n\n[Network]\nAddress=${nics[${node}ipx]}\nDNS=${DNS}\" }"
@@ -98,7 +98,7 @@ EOF
 function generateDomains() {
 
     local ram vcpus pub_bridge domain
-    for node in ${NODES}; do
+    for node in ${nodes}; do
         ram=2048
         vcpus=1
         pub_bridge=""
@@ -128,7 +128,7 @@ function generateDomains() {
 
 function startDomains() {
     local domain
-    for node in ${NODES}; do
+    for node in ${nodes}; do
         domain=${domain_dir}/${node}-domain.xml
         virsh define ${domain}
         virsh start ${node}
@@ -137,20 +137,33 @@ function startDomains() {
 
 function cleanDomains() {
     local disk
-    for node in ${NODES}; do
-        disk=${image_dir}/${node}-disk.qcow2
-        virsh destroy ${node} || echo "ok"
-        virsh undefine ${node} || echo "ok"
-        rm -f ${disk} || echo "ok"
-        virsh net-update --network ${NATNET} delete ip-dhcp-host --xml "<host mac='${nics[${node}mac]}' ip='${nics[${node}ip]}' />" --live --config || echo "ok"
+    for node in ${nodes}; do
+        if virsh list | grep ${node}; then
+            disk=${image_dir}/${node}-disk.qcow2
+            virsh destroy ${node} || echo "ok"
+            virsh undefine ${node} || echo "ok"
+            rm -f ${disk} || echo "ok"
+            virsh net-update --network ${NATNET} delete ip-dhcp-host --xml "<host mac='${nics[${node}mac]}' ip='${nics[${node}ip]}' />" --live --config || echo "ok"
+        fi
     done
 }
+
+
+function upDomains() {
+    local version=${1}
+    echo "Rehydrating disks"
+    for d in ${nodes}; do
+        echo ${d}
+        cp ${image_dir}/${d}-${version}.qcow2 ${image_dir}/${d}-disk.qcow2
+    done
+}
+
 
 if (( ${EUID} != 0 )); then
     echo "Please run as root"
     exit 1
 fi
-NODES="b m1 a1 a2 p1"
+nodes="b m1 a1 a2 p1"
 NATNET="default"
 BRNET="host-bridge"
 NATBR="virbr0"
@@ -174,6 +187,29 @@ image_dir=/var/lib/libvirt/images/container-linux
 if [ "${1}" == "clean" ]; then
     cleanDomains
     echo "Done"    
+    exit 0
+fi
+if [ "${1}" == "up" ]; then
+    # No need for bootstrap
+    nodes="m1 a1 a2 p1"
+    upDomains 1101
+	initialSetup
+	createIps
+	writeIgnition
+	generateDomains
+	startDomains
+    echo "1m sleep"
+	sleep 1m
+    echo "Getting public keys"
+	for i in ${NODESM} ${NODESPUB} ${NODESPRIV}; do
+	  sudo -u ${USER} ssh-keygen -R ${i}
+	  sudo -u ${USER} ssh-keyscan -H ${i} >> /home/${USER}/.ssh/known_hosts
+	done
+    echo "Restarting DCOS master"
+    for master in ${NODESM}; do
+        sudo -u ${USER} ssh core@${master} sudo systemctl restart dcos.target
+    done
+    echo "Done"
     exit 0
 fi
 
