@@ -138,7 +138,7 @@ function startDomains() {
 function cleanDomains() {
     local disk
     for node in ${nodes}; do
-        if virsh list | grep ${node}; then
+        if virsh list --all | grep ${node}; then
             disk=${image_dir}/${node}-disk.qcow2
             virsh destroy ${node} || echo "ok"
             virsh undefine ${node} || echo "ok"
@@ -151,10 +151,27 @@ function cleanDomains() {
 
 function upDomains() {
     local version=${1}
+    if [ ! -d ${snap_dir}/${version} ]; then
+        echo "Snapshot directory ${snap_dir}/${version} not found. Please 'init', install dcos, then 'snap' before using 'up' again"
+        exit 1
+    fi
     echo "Rehydrating disks"
     for d in ${nodes}; do
         echo ${d}
-        cp ${image_dir}/${d}-${version}.qcow2 ${image_dir}/${d}-disk.qcow2
+        cp ${snap_dir}/${version}/${d}-disk.qcow2 ${image_dir}/${d}-disk.qcow2
+    done
+}
+
+function snapDomains() {
+    local version=${1}
+    if [ ! -d ${snap_dir}/${version} ]; then
+        mkdir -p ${snap_dir}/${version}
+    fi
+    for node in ${nodes}; do
+        echo "Stopping ${node}"
+        virsh shutdown ${node}
+        echo "Compressing ${node}-disk.qcow2"
+        qemu-img convert -O qcow2 -c ${image_dir}/${node}-disk.qcow2 ${snap_dir}/${version}/${node}-disk.qcow2
     done
 }
 
@@ -183,6 +200,7 @@ nics[p1macx]="52:54:00:fe:b3:4a" ; nics[p1ipx]="192.168.1.223"
 sshkey=$(cat ${PUBKEY})
 domain_dir=/var/lib/libvirt/container-linux/dcos
 image_dir=/var/lib/libvirt/images/container-linux
+snap_dir=${image_dir}/snap
 
 if [ "${1}" == "clean" ]; then
     cleanDomains
@@ -212,12 +230,20 @@ if [ "${1}" == "up" ]; then
     echo "Done"
     exit 0
 fi
+if [ "${1}" == "snap" ]; then
+    snapDomains 1101
+    echo "Done"
+    exit 0
+fi
 
+if [ "${1}" == "init" ]; then
+    initialSetup
+    createIps
+    writeIgnition
+    generateDomains
+    startDomains
+    echo "Done"
+    exit 0
+fi
 
-initialSetup
-createIps
-writeIgnition
-generateDomains
-startDomains
-
-echo "Done"
+echo "Usage: sudo ${0} <init|snap|up|clean>"
